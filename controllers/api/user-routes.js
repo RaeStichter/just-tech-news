@@ -5,11 +5,15 @@ const { User, Post, Vote, Comment } = require("../../models");
 router.get('/', (req, res) => {
     // Access our User model and run .findAll() method)
     User.findAll()
-      .then(dbUserData => res.json(dbUserData))
-      .catch(err => {
-        console.log(err);
-        res.status(500).json(err);
-    });
+      .then(dbUserData => {
+        req.session.save(() => {
+          req.session.user_id = dbUserData.id;
+          req.session.username = dbUserData.username;
+          req.session.loggedId = true;
+
+          res.join(dbUserData);
+        });
+      })
 });
 
 // GET /api/users/1
@@ -83,13 +87,33 @@ router.post('/login', (req, res) => {
     }
 
     const validPassword = dbUserData.checkPassword(req.body.password);
+
     if (!validPassword) {
       res.status(400).json({ message: 'Incorrect password!' });
       return;
     }
 
-    res.json({ user: dbUserData, message: 'You are now logged in!' });
+    req.session.save(() => {
+      req.session.user_id = dbUserData.id;
+      req.session.username = dbUserData.username;
+      req.session.loggedIn = true;
+  
+      res.json({ user: dbUserData, message: 'You are now logged in!' });
+    });
   });
+});
+
+// added in 14
+// allows the user to log out
+router.put('./logout', (req,res) => {
+  if (req.session.loggedId) {
+    req.session.destroy(() => {
+      res.status(204).end();
+    });
+  }
+  else {
+    res.status(404).end();
+  }
 });
 
 // PUT /api/users/1
@@ -135,5 +159,7 @@ router.delete('/:id', (req, res) => {
       res.status(500).json(err);
     });
 });
+
+
 
 module.exports = router;
